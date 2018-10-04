@@ -13,7 +13,7 @@ library(irr)
 ```{r import IRR data, message=FALSE}
 #import the Excel sheet with the IRR data
 ROCI_IRR <- read_excel("~/Documents/ROCIanalysis/ROCI_082718e.xlsx", sheet = "IRR_2", col_types = c("numeric", "text", "numeric", "date", "text", "numeric", "numeric", "numeric", "numeric", "numeric"))
-# create a dataframe of the CXR and the rating assigned by each reviewer
+#create a dataframe of the CXR and the rating assigned by each reviewer
 ROCI_IRR <- mutate(ROCI_IRR, cxr_id = paste(Subject_ID, CXR_time, sep=""))
 first <- filter(ROCI_IRR, Reviewer == 0) %>% select(cxr_id, Total)
 second <- filter(ROCI_IRR, Reviewer == 1) %>% select(cxr_id, Total)
@@ -29,5 +29,18 @@ icc(ratings[c(2,3)], model="t", type="c", r0=0, conf.level=0.95)
 <br>And a Cohen's kappa (with squared weights):
 ```{r kappa}
 kappa2(ratings[c(2,3)], "squared")
+```
+<br>Scatterplot of agreement:
+```{r scatterplot}
+scatter <-ggplot(ratings, aes(Rev1, Rev2)) + geom_point(size=2) + ggtitle("Scatterplot of Agreement between Reviewers") + xlab("Reviewer 1 score") + ylab("Reviewer 2 score")
+scatter + geom_abline(slope=1, size=0.5, color="blue") + scale_x_continuous(breaks=seq(0,16,2)) + scale_y_continuous(breaks=seq(0,16,2))
+```
+<br>A Bland-Altman plot:
+```{r BA plot}
+#Generate the differences and averages for plot
+ratings <- mutate(ratings, diff = (Rev1 - Rev2), avg = ((Rev1 + Rev2) / 2))
+#Generate plot
+BAplot <- ggplot(ratings, aes(avg, diff)) + geom_point(size=2) + ggtitle("Bland-Altman Plot of Inter-rater Reliability") + xlab("Average") + ylab("Difference")
+BAplot + geom_hline(yintercept=mean(ratings$diff), color="blue", size=0.5) + geom_hline(yintercept=mean(ratings$diff) - 1.96*sd(ratings$diff), color="red", size=0.5) + geom_hline(yintercept=mean(ratings$diff) + 1.96*sd(ratings$diff), color="red", size=0.5)
 ```
 
