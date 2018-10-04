@@ -1,0 +1,18 @@
+---
+title: "Table1"
+author: "S. Mason"
+date: "10/4/2018"
+output: html_document
+---
+```{r setup, message=FALSE}
+library(readxl)
+library(dplyr)
+```
+```{r load data, message=FALSE}
+outcomes <- read_excel("~/Documents/ROCIanalysis/ROCI_082718e.xlsx", sheet = "Outcomes", col_types = c("numeric", "text", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "text", "numeric", "text", "text"))
+```
+```{r filter data}
+#Exclude non-ARDS data and patients without images
+ards <- filter(outcomes, ARDS == 1) %>% filter(imgs == 1)
+```
+
