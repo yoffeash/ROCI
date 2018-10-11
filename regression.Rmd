@@ -9,7 +9,7 @@ output: html_document
 library(readxl)
 library(dplyr)
 ```
-```{r load data, message=FALSE}
+```{r load data, message=FALSE, warnings=FALSE}
 #Load outcomes data
 outcomes <- read_excel("~/Documents/ROCIanalysis/ROCI_082718e.xlsx", sheet = "Outcomes", col_types = c("numeric", "text", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "numeric", "numeric", "text", "numeric", "text", "text"))
 #Load imaging/score data
@@ -35,10 +35,22 @@ summary(one_month)
 ```
 ```{r cox proportional hazards}
 refdate <- as.Date("2018-06-01")
-ards <- mutate(ards, survival = ifelse(date_death == NULL, as.numeric(difftime(refdate, ICU_admit, units='days')), as.numeric(difftime(date_death, ICU_admit, units='days'))))
-
+library(survival)
+library(survminer)
+#Create variables with survival (in days) and a binary indicating censored status
+ards <- mutate(ards, survival = ifelse(is.na(date_death) == TRUE, as.numeric(difftime(refdate, ICU_admit, units='days')), as.numeric(difftime(date_death, ICU_admit, units='days')))) %>% mutate(censor = ifelse(is.na(date_death) == TRUE, 1, 0))
+#Cox regression model
+res_cox <- coxph(Surv(survival, censor) ~ Male+Age+non_white+Immsupp+APACHE+Total, data=ards)
+summary(res_cox)
 ```
+```{r Kaplan Meier}
+ggsurvplot(survfit(res_cox), data=ards, ggtheme = theme_minimal())
+```
+```{r scatterplot}
+ggplot(aes(Total, survival), data=ards) + geom_point()
+```
+
 ```{r Quick code}
-ards %>% filter(Subject_ID == 21) %>% print(date_death)
+rm(ques)
 ```
 
