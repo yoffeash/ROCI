@@ -1,0 +1,29 @@
+---
+title: "Regression: Full cohort"
+author: "S. Mason"
+date: "10/23/2018"
+output: html_document
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+library(readxl)
+library(dplyr)
+library (ggplot2)
+library(survival)
+library(survminer)
+```
+```{r load data, message=FALSE, warnings=FALSE}
+#Load outcomes data
+outcomes <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Outcomes", col_types = c("numeric", "skip", "numeric", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "numeric", "numeric", "text", "numeric", "text", "text"))
+#Load imaging/score data
+images <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Imaging", col_types = c("numeric", "text", "date", "numeric", "date", "numeric", "numeric", "numeric", "date", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "skip"))
+```
+
+<h3>Analysis of the non-control cohort who have a CXR from MICU admit (n=XXX)</h3>
+<br>Regressions use the covariates: Age, Gender, Race (white vs non), immunosuppression, APACHE II score, and Total CXR score
+
+```{r filter data}
+#Creates one dataset of outcomes and scores for subjects with a CXR from MICU admit
+ards_admit <- filter(images, Final_Dx != "Control"), admit_cxr == 1) %>% select(Subject_ID, cxr_date, Quad1, Quad2, Quad3, Quad4, Total)
+ards <- filter(outcomes, ARDS == 1, imgs == 1) %>% select (Subject_ID, Male, Age, BMI, non_white, Immsupp, APACHE, SOFA, days_MV, ICU_admit, ICU_days, Hosp_admit, Hosp_days, DC_coded, hosp_death, date_death, mort28d, mort60d) %>% merge(ards_admit, by="Subject_ID")
+```

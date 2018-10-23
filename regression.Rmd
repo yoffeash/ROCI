@@ -1,5 +1,5 @@
 ---
-title: "Regression"
+title: "Regression: ARDS cohort"
 author: "S. Mason"
 date: "10/10/2018"
 output: html_document
@@ -21,7 +21,7 @@ images <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Imagi
 <h3>Analysis of the subgroup that have ARDS and a CXR from MICU admit (n=122)</h3>
 <br>Regressions use the covariates: Age, Gender, Race (white vs non), immunosuppression, APACHE II score, and Total CXR score
 ```{r filter data}
-#Creates one dataset of outcomes and scores for ARDS patients with a CXR from MICU admit
+#Creates one dataset of outcomes and scores for ARDS subjects with a CXR from MICU admit
 ards_admit <- filter(images, Final_Dx %in% c("ARDS", "Sepsis/ARDS"), admit_cxr == 1) %>% select(Subject_ID, cxr_date, Quad1, Quad2, Quad3, Quad4, Total)
 ards <- filter(outcomes, ARDS == 1, imgs == 1) %>% select (Subject_ID, Male, Age, BMI, non_white, Immsupp, APACHE, SOFA, days_MV, ICU_admit, ICU_days, Hosp_admit, Hosp_days, DC_coded, hosp_death, date_death, mort28d, mort60d) %>% merge(ards_admit, by="Subject_ID")
 
@@ -33,15 +33,11 @@ ards$hosp_death <- as.factor(ards$hosp_death)
 ards$mort28d <- as.factor(ards$mort28d)
 ards$mort60d <- as.factor(ards$mort60d)
 
-#74 of the subejcts have a BMI recorded.
-```
-```{r working}
-hosp_mort <- glm(hosp_death ~ Total+APACHE, family=binomial(link='logit'), data=ards)
-summary(hosp_mort)
+# 74/122 of the subejcts with ards have a BMI recorded.
+# 62/122 of the subjects with ards are immunosuppressed.     code:  ards %>% group_by(Immsupp) %>% summarize(subjects = length(Immsupp))
 ```
 
-
-
+Exploring the outcome one variable at a time we note that only immunosuppression is a predictor of outcome. APACHE, while not a significant predictor, does appear to have a confounding influence on Total. 
 
 ```{r Logit in-hospital mortality}
 #In-hospital mortality
@@ -52,17 +48,21 @@ summary(hosp_mort)
 univariable <- data_frame(var = c("total", "Age", "non_white", "immsupp", "APACHEII"), beta_tot = c(.06066, .05652, .05672, .09509, .07034), std_err_tot = c(.05227, .0526, .0527, .06105, .05388), pval_tot = c(.246, .283, .282, .11937, .1917), AIC = c(171.24, 172.64, 172.74, 141.27, 169.66), pval_var = c(NA, .441, .483, "<<0.05", .064), comment = c("not sig", "not sig", "not sig", "predictor", "confounder"))
 univariable
 ```
-Exploring the outcome one variable at a time we note that only immunosuppression is a predictor of outcome. APACHE, white not a significant predictor, does appear to have a confounding influence on Total. Looking at the population of immunosuppressed persons (and not) as subgroups, we see that prior to adding the APACHE score, the Total score is a significant predictor in NON-immunosuppressed persons.
+Looking at the population of immunosuppressed persons (and not) as subgroups, we see that prior to adding the APACHE score, the Total score is a significant predictor in NON-immunosuppressed persons. However, given the n = 60, this model is at risk for overfitting. This same objection prevents splitting Total into quartiles. Race and gender are not significant and are candidates for removal from the model, though their removal would depart from the literature standard. When I took gender out and replaced it with APACHE II score, Total remained significant. 
 
 ```{r subgroup by immunnosuppresion status}
 #Immunocompetent subgroup
 competent <- ards %>% filter(Immsupp == 0)
+hosp_mort <- glm(hosp_death ~ APACHE+Age+non_white+Total, family=binomial(link='logit'), data=competent)
+summary(hosp_mort)
+
 hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Total, family=binomial(link='logit'), data=competent)
 summary(hosp_mort)
+
 #Immunosuppressed subgroup
-compromise <- ards %>% filter(Immsupp == 1) 
-hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Total, family=binomial(link='logit'), data = compromise)
-summary(hosp_mort)
+#compromise <- ards %>% filter(Immsupp == 1) 
+#hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Total, family=binomial(link='logit'), data = compromise)
+#summary(hosp_mort)
 ```
 
 ```{r Logit 28d mortality}
