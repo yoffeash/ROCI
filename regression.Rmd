@@ -8,49 +8,96 @@ output: html_document
 ```{r setup, echo=FALSE, message=FALSE}
 library(readxl)
 library(dplyr)
+library (ggplot2)
+library(survival)
+library(survminer)
 ```
 ```{r load data, message=FALSE, warnings=FALSE}
 #Load outcomes data
-outcomes <- read_excel("~/Documents/ROCIanalysis/ROCI_082718e.xlsx", sheet = "Outcomes", col_types = c("numeric", "text", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "numeric", "numeric", "text", "numeric", "text", "text"))
+outcomes <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Outcomes", col_types = c("numeric", "skip", "numeric", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "numeric", "numeric", "text", "numeric", "text", "text"))
 #Load imaging/score data
-images <- read_excel("~/Documents/ROCIanalysis/ROCI_082718e.xlsx", sheet = "Imaging", col_types = c("numeric", "text", "date", "numeric", "date", "numeric", "numeric", "numeric", "date", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "text"))
+images <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Imaging", col_types = c("numeric", "text", "date", "numeric", "date", "numeric", "numeric", "numeric", "date", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "skip"))
 ```
-<h3>Analysis of the subgroup that have ARDS and a CXR from MICU admit (n=119)</h3>
+<h3>Analysis of the subgroup that have ARDS and a CXR from MICU admit (n=122)</h3>
+<br>Regressions use the covariates: Age, Gender, Race (white vs non), immunosuppression, APACHE II score, and Total CXR score
 ```{r filter data}
 #Creates one dataset of outcomes and scores for ARDS patients with a CXR from MICU admit
 ards_admit <- filter(images, Final_Dx %in% c("ARDS", "Sepsis/ARDS"), admit_cxr == 1) %>% select(Subject_ID, cxr_date, Quad1, Quad2, Quad3, Quad4, Total)
-ards <- filter(outcomes, ARDS == 1) %>% select (Subject_ID, Male, Age, non_white, Immsupp, APACHE, SOFA, days_MV, ICU_admit, ICU_days, Hosp_admit, Hosp_days, DC_coded, hosp_death, date_death, mort28d, mort60d) %>% merge(ards_admit, by="Subject_ID")
+ards <- filter(outcomes, ARDS == 1, imgs == 1) %>% select (Subject_ID, Male, Age, BMI, non_white, Immsupp, APACHE, SOFA, days_MV, ICU_admit, ICU_days, Hosp_admit, Hosp_days, DC_coded, hosp_death, date_death, mort28d, mort60d) %>% merge(ards_admit, by="Subject_ID")
+
+#Numerics to factor
+ards$Male <- as.factor(ards$Male)
+ards$non_white <- as.factor(ards$non_white)
+ards$Immsupp <- as.factor(ards$Immsupp)
+ards$hosp_death <- as.factor(ards$hosp_death)
+ards$mort28d <- as.factor(ards$mort28d)
+ards$mort60d <- as.factor(ards$mort60d)
+
+#74 of the subejcts have a BMI recorded.
 ```
-```{r Logit in-hospital mortality}
-hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Immsupp+APACHE+Total,family=binomial(link='logit'), data=ards)
+```{r working}
+hosp_mort <- glm(hosp_death ~ Total+APACHE, family=binomial(link='logit'), data=ards)
 summary(hosp_mort)
 ```
+
+
+
+
+```{r Logit in-hospital mortality}
+#In-hospital mortality
+hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Immsupp+APACHE+Total,family=binomial(link='logit'), data=ards)
+summary(hosp_mort)
+
+#Table of univariable analysis
+univariable <- data_frame(var = c("total", "Age", "non_white", "immsupp", "APACHEII"), beta_tot = c(.06066, .05652, .05672, .09509, .07034), std_err_tot = c(.05227, .0526, .0527, .06105, .05388), pval_tot = c(.246, .283, .282, .11937, .1917), AIC = c(171.24, 172.64, 172.74, 141.27, 169.66), pval_var = c(NA, .441, .483, "<<0.05", .064), comment = c("not sig", "not sig", "not sig", "predictor", "confounder"))
+univariable
+```
+Exploring the outcome one variable at a time we note that only immunosuppression is a predictor of outcome. APACHE, white not a significant predictor, does appear to have a confounding influence on Total. Looking at the population of immunosuppressed persons (and not) as subgroups, we see that prior to adding the APACHE score, the Total score is a significant predictor in NON-immunosuppressed persons.
+
+```{r subgroup by immunnosuppresion status}
+#Immunocompetent subgroup
+competent <- ards %>% filter(Immsupp == 0)
+hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Total, family=binomial(link='logit'), data=competent)
+summary(hosp_mort)
+#Immunosuppressed subgroup
+compromise <- ards %>% filter(Immsupp == 1) 
+hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Total, family=binomial(link='logit'), data = compromise)
+summary(hosp_mort)
+```
+
 ```{r Logit 28d mortality}
-one_month <- glm(mort28d ~ Male+Age+non_white+Immsupp+APACHE+Total,family=binomial(link='logit'), data=ards)
+#28-day mortality
+one_month <- glm(mort28d ~ Male+Age+non_white+Immsupp+APACHE+Total, family=binomial(link='logit'), data=ards)
 summary(one_month)
 ```
 ```{r Logit 60d mortality}
-two_month <- glm(mort60d ~ Male+Age+non_white+Immsupp+APACHE+Total,family=binomial(link='logit'), data=ards)
+#60-day mortality
+two_month <- glm(mort60d ~ Male+Age+non_white+Immsupp+APACHE+Total, family=binomial(link='logit'), data=ards)
 summary(one_month)
 ```
 ```{r cox proportional hazards}
 refdate <- as.Date("2018-06-01")
-library(survival)
-library(survminer)
 #Create variables with survival (in days) and a binary indicating censored status
 ards <- mutate(ards, survival = ifelse(is.na(date_death) == TRUE, as.numeric(difftime(refdate, ICU_admit, units='days')), as.numeric(difftime(date_death, ICU_admit, units='days')))) %>% mutate(censor = ifelse(is.na(date_death) == TRUE, 1, 0))
 #Cox regression model
-res_cox <- coxph(Surv(survival, censor) ~ Male+Age+non_white+Immsupp+APACHE+Total, data=ards)
-summary(res_cox)
+cox_all <- coxph(Surv(survival, censor) ~ Male+Age+non_white+Immsupp+APACHE+Total, data=ards)
+summary(cox_all)
 ```
 ```{r Kaplan Meier}
-ggsurvplot(survfit(res_cox), data=ards, ggtheme = theme_minimal())
+ggsurvplot(survfit(cox_all), data=ards, risk.table=TRUE, ggtheme = theme_minimal())
 ```
 ```{r scatterplot}
 ggplot(aes(Total, survival), data=ards) + geom_point()
 ```
+<h3>Now looking at the CXR divded into (ordinal) quartiles (rather than continuous).</h3>
+```{r quartiles}
+ards <- ards %>% mutate(quartile = ntile(Total,4))
+cox_quart <- coxph(Surv(survival, censor) ~ Male+Age+non_white+Immsupp+APACHE+strata(quartile), data=ards)
+summary(cox_quart)
+ggsurvplot(survfit(cox_quart), data=ards, risk.table=TRUE, ggtheme=theme_minimal())
+```
 
 ```{r Quick code}
-rm(ques)
+#rm(ques)
 ```
 
