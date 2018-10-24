@@ -1,7 +1,7 @@
 ---
 title: "Regression: ARDS cohort"
 author: "S. Mason"
-date: "10/10/2018"
+date: "10/24/2018"
 output: html_document
 ---
 
@@ -12,15 +12,25 @@ library (ggplot2)
 library(survival)
 library(survminer)
 ```
-```{r load data, message=FALSE, warnings=FALSE}
+```{r load data, message=FALSE, warnings=FALSE, echo=FALSE}
 #Load outcomes data
 outcomes <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Outcomes", col_types = c("numeric", "skip", "numeric", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "numeric", "numeric", "text", "numeric", "text", "text"))
 #Load imaging/score data
 images <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Imaging", col_types = c("numeric", "text", "date", "numeric", "date", "numeric", "numeric", "numeric", "date", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "skip"))
 ```
 <h3>Analysis of the subgroup that have ARDS and a CXR from MICU admit (n=122)</h3>
-<br>Regressions use the covariates: Age, Gender, Race (white vs non), immunosuppression, APACHE II score, and Total CXR score
-```{r filter data}
+**TLDR**:
+<br> - Total CXR score is not predictive of in-hospital mortality in ARDS patients
+<br> - Total CXR score IS predictive of in-hospital mortality in immunocompetent ARDS patients
+<br> - Total CXR score is not predictive of 28-day mortality in ARDS patients
+<br> - Total CXR score is not predictive of 28-day mortality in immunocompetent ARDS patients
+<br> - Total CXR score is not predictive of 60-day mortality in ARDS patients
+<br> - Total CXR score IS predictive of 60-day mortaltiy in immunocompetent ARDS patients
+<br> - Total CXR score is not predictive for time-to-death in a Cox model of ARDS patients
+<br> - Total CXR score is not predictive for time-to-death in a Cox model of immunocompetent ARDS patients
+<br> - None of the covariates are predictive of ICU LOS and duration of MV
+<br>
+```{r filter data, echo=FALSE}
 #Creates one dataset of outcomes and scores for ARDS subjects with a CXR from MICU admit
 ards_admit <- filter(images, Final_Dx %in% c("ARDS", "Sepsis/ARDS"), admit_cxr == 1) %>% select(Subject_ID, cxr_date, Quad1, Quad2, Quad3, Quad4, Total)
 ards <- filter(outcomes, ARDS == 1, imgs == 1) %>% select (Subject_ID, Male, Age, BMI, non_white, Immsupp, APACHE, SOFA, days_MV, ICU_admit, ICU_days, Hosp_admit, Hosp_days, DC_coded, hosp_death, date_death, mort28d, mort60d) %>% merge(ards_admit, by="Subject_ID")
@@ -34,24 +44,25 @@ ards$mort28d <- as.factor(ards$mort28d)
 ards$mort60d <- as.factor(ards$mort60d)
 
 # 74/122 of the subejcts with ards have a BMI recorded.
-# 62/122 of the subjects with ards are immunosuppressed.     code:  ards %>% group_by(Immsupp) %>% summarize(subjects = length(Immsupp))
+# 62/122 of the subjects with ards are immunosuppressed.     
+# code:  ards %>% group_by(Immsupp) %>% summarize(subjects = length(Immsupp))
 ```
 
-Exploring the outcome one variable at a time we note that only immunosuppression is a predictor of outcome. APACHE, while not a significant predictor, does appear to have a confounding influence on Total. 
+**In-hospital mortality**: Exploring the outcome one variable at a time we note that only immunosuppression is a predictor of outcome. APACHE, while not a significant predictor, does appear to have a confounding influence on Total. 
 
 ```{r Logit in-hospital mortality}
 #In-hospital mortality
-hosp_mort <- glm(hosp_death ~ Male+Age+non_white+Immsupp+APACHE+Total,family=binomial(link='logit'), data=ards)
+hosp_mort <- glm(hosp_death ~ Male+Total+Age+non_white+Immsupp+APACHE, family=binomial(link='logit'), data=ards)
 summary(hosp_mort)
 
 #Table of univariable analysis
-univariable <- data_frame(var = c("total", "Age", "non_white", "immsupp", "APACHEII"), beta_tot = c(.06066, .05652, .05672, .09509, .07034), std_err_tot = c(.05227, .0526, .0527, .06105, .05388), pval_tot = c(.246, .283, .282, .11937, .1917), AIC = c(171.24, 172.64, 172.74, 141.27, 169.66), pval_var = c(NA, .441, .483, "<<0.05", .064), comment = c("not sig", "not sig", "not sig", "predictor", "confounder"))
+univariable <- data_frame(var = c("total", "Age", "non_white", "immsupp", "APACHEII", "Male"), beta_tot = c(.06066, .05652, .05672, .09509, .07034, .06026), std_err_tot = c(.05227, .0526, .0527, .06105, .05388, .05623), pval_tot = c(.246, .283, .282, .11937, .1917, .252), AIC = c(171.24, 172.64, 172.74, 141.27, 169.66, 172.21), pval_var = c(NA, .441, .483, "<<0.05", .064, .31), comment = c("not sig", "not sig", "not sig", "predictor", "confounder", "not sig"))
 univariable
 ```
-Looking at the population of immunosuppressed persons (and not) as subgroups, we see that prior to adding the APACHE score, the Total score is a significant predictor in NON-immunosuppressed persons. However, given the n = 60, this model is at risk for overfitting. This same objection prevents splitting Total into quartiles. Race and gender are not significant and are candidates for removal from the model, though their removal would depart from the literature standard. When I took gender out and replaced it with APACHE II score, Total remained significant. 
+**Subgroup analysis: immunocompetent**: Looking at the population of immunosuppressed persons (and not) as subgroups, we see that prior to adding the APACHE score, the Total score is a significant predictor in NON-immunosuppressed persons. However, given the n = 60, this model is at risk for overfitting. This same objection prevents splitting Total into quartiles. Race and gender are not significant and are candidates for removal from the model, though their removal would depart from the literature standard. When I took gender out and replaced it with APACHE II score, Total remained significant. 
 
-```{r subgroup by immunnosuppresion status}
-#Immunocompetent subgroup
+```{r in-hospital mortality by immunnosuppresion status}
+#Immunocompetent subgroup (n=60)
 competent <- ards %>% filter(Immsupp == 0)
 hosp_mort <- glm(hosp_death ~ APACHE+Age+non_white+Total, family=binomial(link='logit'), data=competent)
 summary(hosp_mort)
@@ -65,39 +76,80 @@ summary(hosp_mort)
 #summary(hosp_mort)
 ```
 
+<br>**28-day mortality**: Similar to our in-hospital mortality results, the CXR is not a significant predictor. Nor are age and race. Immunosuppression status is, as is the APACHE score. APACHE again appears to confound Total (if you can confound a non-sig predictor).
+
 ```{r Logit 28d mortality}
 #28-day mortality
-one_month <- glm(mort28d ~ Male+Age+non_white+Immsupp+APACHE+Total, family=binomial(link='logit'), data=ards)
+one_month <- glm(mort28d ~ Total+Male, family=binomial(link='logit'), data=ards)
+summary(one_month)
+
+#Table of univariable analysis
+univariable <- data_frame(var = c("total", "Age", "non_white", "immsupp", "APACHEII", "=Male"), beta_tot = c(.0361, .0336, .03, .0618, .04587, .03539), std_err_tot = c(.0519, .0522, .0525, .06, .0536, .05253), pval_tot = c(.487, .519, .572, .3035, .3917, .5), AIC = c(172.64, 174.45, 173.49, 143.21, 170.5, 172.55), pval_var = c(NA, .439, .292, "<<.01", .0469, .15), comment = c("not sig", "not sig", "not sig", "predictor", "predictor", "not sig"))
+univariable
+```
+<br>Again, looking at immunocompetent persons as a subgroup, we note that in contrast to in-hospital mortality, the total CXR score is NOT predictive of 28-day mortality, but age is. APACHE, when it was exchanged for gender, is not. 
+
+```{r 28 day mortality by immunosuppression status}
+one_month <- glm(mort28d ~ Male+non_white+Age+Total, family=binomial(link='logit'), data=competent)
 summary(one_month)
 ```
+
+<br>**60-day mortality**: Looking at the 60 day mortality, we note that the only significant predictor is immunosuppresion status. The univariable table (akin to those above) was generated, but is not included here. In the immunocompetent subgroup, age and Total CXR score are both predictive. This remains true even when APACHE is substituted for gender. 
 ```{r Logit 60d mortality}
 #60-day mortality
-two_month <- glm(mort60d ~ Male+Age+non_white+Immsupp+APACHE+Total, family=binomial(link='logit'), data=ards)
-summary(one_month)
+#two_month <- glm(mort60d ~ Total+Male+non_white+APACHE+Immsupp+Age, family=binomial(link='logit'), data=ards)
+#summary(two_month)
+
+#Immunocompetent subgroup
+two_month <- glm(mort60d ~ Total+APACHE+non_white+Age, family=binomial(link='logit'), data=competent)
+summary(two_month)
 ```
+
+<br>**Time to death/Cox model**: Immunosuppresion and gender are the only predictive variables. In the immunocompetent subgroup, age, gender, and APACHE score are predictive, but Total CXR is not. 
 ```{r cox proportional hazards}
-refdate <- as.Date("2018-06-01")
+refdate <- as.Date("2018-09-15")
 #Create variables with survival (in days) and a binary indicating censored status
 ards <- mutate(ards, survival = ifelse(is.na(date_death) == TRUE, as.numeric(difftime(refdate, ICU_admit, units='days')), as.numeric(difftime(date_death, ICU_admit, units='days')))) %>% mutate(censor = ifelse(is.na(date_death) == TRUE, 1, 0))
+
 #Cox regression model
-cox_all <- coxph(Surv(survival, censor) ~ Male+Age+non_white+Immsupp+APACHE+Total, data=ards)
+cox_all <- coxph(Surv(survival, censor) ~ Male+Age+non_white+APACHE+Immsupp+Total, data=ards)
 summary(cox_all)
+
+#Including only immunocompetent
+competent <- mutate(competent, survival = ifelse(is.na(date_death) == TRUE, as.numeric(difftime(refdate, ICU_admit, units='days')), as.numeric(difftime(date_death, ICU_admit, units='days')))) %>% mutate(censor = ifelse(is.na(date_death) == TRUE, 1, 0))
+
+cox_comp <- coxph(Surv(survival, censor) ~ Male+Age+APACHE+Total, data=competent)
+summary(cox_comp)
 ```
-```{r Kaplan Meier}
-ggsurvplot(survfit(cox_all), data=ards, risk.table=TRUE, ggtheme = theme_minimal())
-```
-```{r scatterplot}
-ggplot(aes(Total, survival), data=ards) + geom_point()
-```
-<h3>Now looking at the CXR divded into (ordinal) quartiles (rather than continuous).</h3>
+
+**Cox by quartile**: Now looking at the Total CXR score divded into (ordinal) quartiles (rather than continuous). In the immunocompetent subgroup, only age was added to the model with the quartiles in an effort to avoid over-fitting. 
 ```{r quartiles}
+#Entire ARDS cohort
 ards <- ards %>% mutate(quartile = ntile(Total,4))
 cox_quart <- coxph(Surv(survival, censor) ~ Male+Age+non_white+Immsupp+APACHE+strata(quartile), data=ards)
 summary(cox_quart)
 ggsurvplot(survfit(cox_quart), data=ards, risk.table=TRUE, ggtheme=theme_minimal())
+
+#Immunocompetent ARDS cohort
+competent <- competent %>% mutate(quartile = ntile(Total,4))
+cox_quart <- coxph(Surv(survival, censor) ~ Age+strata(quartile), data=competent)
+summary(cox_quart)
+ggsurvplot(survfit(cox_quart), data=competent, risk.table=TRUE, ggtheme=theme_minimal())
+```
+<br>**Other outcome measures**: None of the covariates appear to predict length of ICU stay (linear regression, non-transformed outcome). A huge potentital confounder here is the most severely ill patients may have been transitioned to CMO ealier in their course, which would artificially reduce their lengths of ICU stay. The same is true for duration of mechanical ventilation. 
+```{r other outcomes}
+#Length of ICU stay
+ICUdays <- glm(ICU_days ~ Total+APACHE+Age+non_white+Male+Immsupp, data=ards)
+summary(ICUdays)
+ICUdays <- glm(ICU_days ~ Total+APACHE+Age+non_white+Male, data=competent)
+summary(ICUdays)
+
+#Duration of mechanical ventilation
+mvdays <- glm(days_MV ~ Total+APACHE+Age+non_white+Male+Immsupp, data=ards)
+summary(ICUdays)
+mvdays <- glm(days_MV ~ Total+APACHE+Age+non_white+Male, data=competent)
+summary(ICUdays)
 ```
 
-```{r Quick code}
-#rm(ques)
-```
+
 
