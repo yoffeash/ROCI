@@ -32,8 +32,8 @@ images <- read_excel("~/OneDrive - Partners HealthCare/research/ROCI/CXR/data/RO
 <br>
 ```{r filter data}
 #Creates one dataset of outcomes and scores for subjects with a CXR from MICU admit
-admit <- filter(images, Final_Dx != "Control", admit_cxr == 1) %>% select(Subject_ID, cxr_date, Quad1, Quad2, Quad3, Quad4, Total)
-imgs <- filter(outcomes, Final_Dx != "Control", imgs == 1) %>% select (Subject_ID, Male, Age, BMI, non_white, Immsupp, APACHE, SOFA, days_MV, ICU_admit, ICU_days, Hosp_admit, Hosp_days, Final_Dx, DC_coded, hosp_death, date_death, mort28d, mort60d) %>% merge(admit, by="Subject_ID")
+admit <- filter(images, Final_Dx != "Control", admit_cxr == 1) %>% dplyr::select(Subject_ID, cxr_date, Quad1, Quad2, Quad3, Quad4, Total)
+imgs <- filter(outcomes, Final_Dx != "Control", imgs == 1) %>% dplyr::select (Subject_ID, Male, Age, BMI, non_white, Immsupp, APACHE, SOFA, days_MV, ICU_admit, ICU_days, Hosp_admit, Hosp_days, Final_Dx, DC_coded, hosp_death, date_death, mort28d, mort60d) %>% merge(admit, by="Subject_ID")
 
 # 207/559 subjects are immunosuppressed
 # 286/559 subjects have a BMI recorded
