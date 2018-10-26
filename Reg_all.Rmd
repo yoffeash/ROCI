@@ -11,12 +11,13 @@ library(dplyr)
 library (ggplot2)
 library(survival)
 library(survminer)
+library(MASS)
 ```
 ```{r load data, message=FALSE, warnings=FALSE, echo=FALSE}
 #Load outcomes data
-outcomes <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Outcomes", col_types = c("numeric", "skip", "numeric", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "numeric", "numeric", "text", "numeric", "text", "text"))
+outcomes <- read_excel("~/OneDrive - Partners HealthCare/research/ROCI/CXR/data/ROCI_101918.xlsx", sheet = "Outcomes", col_types = c("numeric", "skip", "numeric", "numeric", "numeric", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "date", "date", "numeric", "numeric", "date", "date",  "numeric", "date", "date", "numeric", "text", "numeric", "text", "numeric", "numeric", "date", "numeric", "numeric", "text", "numeric", "text", "text"))
 #Load imaging/score data
-images <- read_excel("~/Documents/ROCIanalysis/ROCI_101918.xlsx", sheet = "Imaging", col_types = c("numeric", "text", "date", "numeric", "date", "numeric", "numeric", "numeric", "date", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "skip"))
+images <- read_excel("~/OneDrive - Partners HealthCare/research/ROCI/CXR/data/ROCI_101918.xlsx", sheet = "Imaging", col_types = c("numeric", "text", "date", "numeric", "date", "numeric", "numeric", "numeric", "date", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "skip"))
 ```
 
 <h3>Analysis of the non-control cohort who have a CXR from MICU admit (n=559)</h3>
@@ -95,4 +96,24 @@ mvdays <- glm(days_MV ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs)
 summary(ICUdays)
 ```
 
+<br>**Other outcome measures**: Total (along with APACHE, age, and race) are predictive of both ICU LOS and duration of MV (in a simple linear regression model with a non-transformed outcome) - Using negative binomial regression.
+```{r other outcomes}
+#Length of ICU stay
+ICUdays_nb <- glm.nb(ICU_days ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs)
+summary(ICUdays)
+cbind(IRR = exp(coef(ICUdays)), 
+      exp(confint(ICUdays)))[2,]
 
+#Duration of mechanical ventilation
+mvdays_nb <- glm.nb(days_MV ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs)
+summary(mvdays_nb)
+cbind(IRR = exp(coef(mvdays_nb)), 
+      exp(confint(mvdays_nb)))[2,]
+
+#Duration of mechanical ventilation - subset who were intubated
+imgs_MV <- imgs %>% filter(days_MV > 0)
+mvdays_nb <- glm.nb(days_MV ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs_MV)
+summary(mvdays_nb)
+cbind(IRR = exp(coef(mvdays_nb)), 
+      exp(confint(mvdays_nb)))[2,]
+```
