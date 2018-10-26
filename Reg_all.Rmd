@@ -12,6 +12,8 @@ library (ggplot2)
 library(survival)
 library(survminer)
 library(MASS)
+library(psych)
+library(gmodels)
 ```
 ```{r load data, message=FALSE, warnings=FALSE, echo=FALSE}
 #Load outcomes data
@@ -72,7 +74,7 @@ summary(two_month)
 ```{r cox proportional hazards}
 refdate <- as.Date("2018-09-15")
 #Create variables with survival (in days) and a binary indicating censored status
-imgs <- mutate(imgs, survival = ifelse(is.na(date_death) == TRUE, as.numeric(difftime(refdate, ICU_admit, units='days')), as.numeric(difftime(date_death, ICU_admit, units='days')))) %>% mutate(censor = ifelse(is.na(date_death) == TRUE, 1, 0))
+imgs <- mutate(imgs, survival = ifelse(is.na(date_death) == TRUE, as.numeric(difftime(refdate, ICU_admit, units='days')), as.numeric(difftime(date_death, ICU_admit, units='days')))) %>% mutate(censor = ifelse(is.na(date_death) == TRUE, 0, 1))
 
 #Cox regression model
 cox_all <- coxph(Surv(survival, censor) ~ Male+Age+non_white+APACHE+Immsupp+Total, data=imgs)
@@ -98,22 +100,61 @@ summary(ICUdays)
 
 <br>**Other outcome measures**: Total (along with APACHE, age, and race) are predictive of both ICU LOS and duration of MV (in a simple linear regression model with a non-transformed outcome) - Using negative binomial regression.
 ```{r other outcomes}
+imgs$quartile_f <- as.factor(imgs$quartile)
+contrasts(imgs$quartile_f) <- contr.treatment(4, base=1)
+
 #Length of ICU stay
 ICUdays_nb <- glm.nb(ICU_days ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs)
-summary(ICUdays)
-cbind(IRR = exp(coef(ICUdays)), 
-      exp(confint(ICUdays)))[2,]
+summary(ICUdays_nb)
+cbind(IRR = exp(coef(ICUdays_nb)), 
+      exp(confint(ICUdays_nb)))[2,]
+### by quartile
+ICUdays_nb_quart <- glm.nb(ICU_days ~ quartile_f+APACHE+Age+non_white+Male+Immsupp, data=imgs)
+summary(ICUdays_nb_quart)
+cbind(IRR = exp(coef(ICUdays_nb_quart)), 
+      exp(confint(ICUdays_nb_quart)))[2:4,]
 
 #Duration of mechanical ventilation
 mvdays_nb <- glm.nb(days_MV ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs)
 summary(mvdays_nb)
 cbind(IRR = exp(coef(mvdays_nb)), 
       exp(confint(mvdays_nb)))[2,]
+### by quartile
+mvdays_nb_quart <- glm.nb(days_MV ~ quartile_f+APACHE+Age+non_white+Male+Immsupp, data=imgs)
+summary(mvdays_nb_quart)
+cbind(IRR = exp(coef(mvdays_nb_quart)), 
+      exp(confint(mvdays_nb_quart)))[2:4,]
 
 #Duration of mechanical ventilation - subset who were intubated
-imgs_MV <- imgs %>% filter(days_MV > 0)
-mvdays_nb <- glm.nb(days_MV ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs_MV)
-summary(mvdays_nb)
-cbind(IRR = exp(coef(mvdays_nb)), 
-      exp(confint(mvdays_nb)))[2,]
+imgs_MV <- imgs %>% filter(days_MV > 0) #subset
+mvdays_nb_mvsub <- glm.nb(days_MV ~ Total+APACHE+Age+non_white+Male+Immsupp, data=imgs_MV)
+summary(mvdays_nb_mvsub)
+cbind(IRR = exp(coef(mvdays_nb_mvsub)), 
+      exp(confint(mvdays_nb_mvsub)))[2,]
+### by quartile
+mvdays_nb_mvsub_quart <- glm.nb(days_MV ~ quartile_f+APACHE+Age+non_white+Male+Immsupp, data=imgs_MV)
+summary(mvdays_nb_mvsub_quart)
+cbind(IRR = exp(coef(mvdays_nb_mvsub_quart)), 
+      exp(confint(mvdays_nb_mvsub_quart)))[2:4,]
 ```
+
+<br>**Table 1 measures:**
+```{r table 1}
+#Note: there are more elegant solutions... This is just quick and dirty.
+
+# numeric values
+imgs_num <- imgs %>% select_if(is.numeric)
+describe(imgs_num)
+
+#categorical - percent male
+CrossTable(imgs$Male)
+
+#categorical - percent immunosuppressed
+CrossTable(imgs$Immsupp)
+
+#categorical - percent non-white
+CrossTable(imgs$non_white)
+
+#categorical - percent non-whitein hospital mortality)
+```
+
